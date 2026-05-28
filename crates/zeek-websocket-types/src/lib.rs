@@ -405,7 +405,7 @@ impl Display for Protocol {
             Self::TCP => "tcp",
             Self::UDP => "udp",
             Self::ICMP => "icmp",
-            Self::UNKNOWN => "unknown",
+            Self::UNKNOWN => "?",
         })
     }
 }
@@ -418,7 +418,7 @@ impl FromStr for Protocol {
             "tcp" => Self::TCP,
             "udp" => Self::UDP,
             "icmp" => Self::ICMP,
-            "unknown" => Self::UNKNOWN,
+            "?" => Self::UNKNOWN,
             _ => Err(ParseError::InvalidProtocol(s.to_string()))?,
         })
     }
@@ -1034,7 +1034,7 @@ mod test {
         assert_eq!(Protocol::from_str("tcp"), Ok(Protocol::TCP));
         assert_eq!(Protocol::from_str("udp"), Ok(Protocol::UDP));
         assert_eq!(Protocol::from_str("icmp"), Ok(Protocol::ICMP));
-        assert_eq!(Protocol::from_str("unknown"), Ok(Protocol::UNKNOWN));
+        assert_eq!(Protocol::from_str("?"), Ok(Protocol::UNKNOWN));
         assert_eq!(
             Protocol::from_str("foo"),
             Err(ParseError::InvalidProtocol("foo".into()))
@@ -1043,7 +1043,7 @@ mod test {
         assert_eq!(Protocol::TCP.to_string(), "tcp");
         assert_eq!(Protocol::UDP.to_string(), "udp");
         assert_eq!(Protocol::ICMP.to_string(), "icmp");
-        assert_eq!(Protocol::UNKNOWN.to_string(), "unknown");
+        assert_eq!(Protocol::UNKNOWN.to_string(), "?");
     }
 
     #[test]
