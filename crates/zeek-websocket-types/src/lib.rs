@@ -320,6 +320,7 @@ mod timespan {
 
     enum Unit {
         NS,
+        US,
         MS,
         S,
         Min,
@@ -333,6 +334,7 @@ mod timespan {
         fn from_str(s: &str) -> Result<Self, Self::Err> {
             Ok(match s {
                 "ns" => Self::NS,
+                "us" => Self::US,
                 "ms" => Self::MS,
                 "s" => Self::S,
                 "min" => Self::Min,
@@ -390,6 +392,7 @@ mod timespan {
 
         Ok(match unit {
             Unit::NS => Duration::nanoseconds(num),
+            Unit::US => Duration::microseconds(num),
             Unit::MS => Duration::milliseconds(num),
             Unit::S => Duration::seconds(num),
             Unit::Min => Duration::minutes(num),
@@ -405,7 +408,7 @@ impl Display for Protocol {
             Self::TCP => "tcp",
             Self::UDP => "udp",
             Self::ICMP => "icmp",
-            Self::UNKNOWN => "unknown",
+            Self::UNKNOWN => "?",
         })
     }
 }
@@ -418,7 +421,7 @@ impl FromStr for Protocol {
             "tcp" => Self::TCP,
             "udp" => Self::UDP,
             "icmp" => Self::ICMP,
-            "unknown" => Self::UNKNOWN,
+            "?" => Self::UNKNOWN,
             _ => Err(ParseError::InvalidProtocol(s.to_string()))?,
         })
     }
@@ -1034,7 +1037,7 @@ mod test {
         assert_eq!(Protocol::from_str("tcp"), Ok(Protocol::TCP));
         assert_eq!(Protocol::from_str("udp"), Ok(Protocol::UDP));
         assert_eq!(Protocol::from_str("icmp"), Ok(Protocol::ICMP));
-        assert_eq!(Protocol::from_str("unknown"), Ok(Protocol::UNKNOWN));
+        assert_eq!(Protocol::from_str("?"), Ok(Protocol::UNKNOWN));
         assert_eq!(
             Protocol::from_str("foo"),
             Err(ParseError::InvalidProtocol("foo".into()))
@@ -1043,7 +1046,7 @@ mod test {
         assert_eq!(Protocol::TCP.to_string(), "tcp");
         assert_eq!(Protocol::UDP.to_string(), "udp");
         assert_eq!(Protocol::ICMP.to_string(), "icmp");
-        assert_eq!(Protocol::UNKNOWN.to_string(), "unknown");
+        assert_eq!(Protocol::UNKNOWN.to_string(), "?");
     }
 
     #[test]
@@ -1094,6 +1097,11 @@ mod test {
             Value::from(Duration::nanoseconds(1))
         );
         assert_eq!(
+            serde_json::from_value::<Value>(json!({ "@data-type": "timespan", "data": "1us" }))
+                .unwrap(),
+            Value::from(Duration::microseconds(1))
+        );
+        assert_eq!(
             serde_json::from_value::<Value>(json!({ "@data-type": "timespan", "data": "1ms" }))
                 .unwrap(),
             Value::from(Duration::milliseconds(1))
@@ -1126,11 +1134,11 @@ mod test {
         );
 
         assert_eq!(
-            serde_json::from_value::<Value>(json!({ "@data-type": "timespan", "data": "1us" }))
+            serde_json::from_value::<Value>(json!({ "@data-type": "timespan", "data": "1a" }))
                 .err()
                 .unwrap()
                 .to_string(),
-            r"invalid timespan unit 'us'"
+            r"invalid timespan unit 'a'"
         );
         assert_eq!(
             serde_json::from_value::<Value>(json!({ "@data-type": "timespan", "data": "-1-1s" }))
