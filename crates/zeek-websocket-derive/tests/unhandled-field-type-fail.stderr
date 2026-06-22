@@ -4,16 +4,31 @@ error[E0277]: the trait bound `Value: From<Custom>` is not satisfied
 5 | #[derive(ZeekType)]
   |          ^^^^^^^^ the trait `From<Custom>` is not implemented for `Value`
   |
-  = help: the following other types implement trait `From<T>`:
-            `Value` implements `From<&str>`
-            `Value` implements `From<()>`
-            `Value` implements `From<Data>`
-            `Value` implements `From<HashMap<K, V>>`
-            `Value` implements `From<HashSet<T>>`
-            `Value` implements `From<IpAddr>`
-            `Value` implements `From<IpNetwork>`
-            `Value` implements `From<OffsetDateTime>`
-          and $N others
+  = help: `Value` implements trait `From<T>`:
+            From<&str>
+            From<()>
+            From<Data>
+            From<HashMap<K, V>>
+            From<HashSet<T>>
+            From<IpAddr>
+            From<IpNetwork>
+            From<OffsetDateTime>
+            From<Vec<T>>
+            From<X>
+            From<bool>
+            From<f32>
+            From<f64>
+            From<i16>
+            From<i32>
+            From<i64>
+            From<i8>
+            From<std::string::String>
+            From<u16>
+            From<u32>
+            From<u64>
+            From<u8>
+            From<zeek_websocket_types::Duration>
+            From<zeek_websocket_types::Port>
   = note: this error originates in the derive macro `ZeekType` (in Nightly builds, run with -Z macro-backtrace for more info)
 
 error[E0271]: type mismatch resolving `<Custom as TryFrom<Value>>::Error == ConversionError`
