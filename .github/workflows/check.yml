@@ -147,7 +147,7 @@ jobs:
         run: cargo codspeed build
 
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@3194d9a39c4d46684cb44bf7207fc56626aad8fd
+        uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af
         with:
           run: cargo codspeed run
           token: ${{ secrets.CODSPEED_TOKEN }}
