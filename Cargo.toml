@@ -71,7 +71,7 @@ members = [
 
 [workspace.dependencies]
 anyhow = { version = "1.0.100", default-features = false }
-time = { version = "0.3.45" }
+time = { version = "0.3.51" }
 criterion = { version = "4.2.1", default-features = false, features = ["async_tokio", "html_reports", "plotters"], package = "codspeed-criterion-compat" }
 document-features = { version = "0.2.12", features = ["default"], default-features = false }
 futures-util = { version = "0.3.31", default-features = false }
