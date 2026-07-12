@@ -200,7 +200,7 @@ impl<C: ZeekClient> Service<C> {
                     break;
                 }
                 message => {
-                    return Err(Error::Transport(format!("expected ACK, got '{message:?}'")))?;
+                    return Err(Error::Transport(format!("expected ACK, got '{message:?}'")));
                 }
             }
         }
