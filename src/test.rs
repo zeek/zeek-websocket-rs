@@ -103,6 +103,7 @@ impl MockServer {
     }
 }
 
+#[allow(clippy::module_inception, clippy::unwrap_used)]
 #[cfg(test)]
 mod test {
     use zeek_websocket_types::{Event, Message, Subscriptions};
@@ -124,7 +125,7 @@ mod test {
 
         // Validate that the server echos data back to us.
         let echo = Event::new("echo", vec![1]);
-        let data = Message::new_data(&topic, echo.clone());
+        let data = Message::new_data(&topic, echo);
         conn.send(data.clone().into()).unwrap();
         assert_eq!(conn.read().unwrap().try_into(), Ok(data));
     }

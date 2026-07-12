@@ -965,11 +965,11 @@ mod test {
     #[test]
     fn simple_client() {
         static EVENTS: LazyLock<Arc<(Mutex<Vec<Event>>, Condvar)>> =
-            LazyLock::new(|| Default::default());
+            LazyLock::new(Default::default);
 
         extern "C" fn receive_event_callback(topic: *const libc::c_char, event: &Event) {
             let topic = unsafe { CStr::from_ptr(topic) };
-            eprintln!("Event {topic:?}: {:?}", &event.0);
+            eprintln!("Event {topic:?}: {:?}", event.0);
 
             EVENTS.0.lock().unwrap().push(Event(event.0.clone()));
             EVENTS.1.notify_one();
@@ -1016,13 +1016,11 @@ mod test {
 
     #[test]
     fn unreachable_remote() {
-        let app_name = CStr::from_bytes_with_nul(b"myapp\0").unwrap().as_ptr();
-
         let topics: Vec<_> = vec![c"/ping".as_ptr()];
 
         let uri = c"ws://localhost:1".as_ptr();
 
-        static COND: LazyLock<Arc<Condvar>> = LazyLock::new(|| Default::default());
+        static COND: LazyLock<Arc<Condvar>> = LazyLock::new(Default::default);
 
         extern "C" fn receive_event_callback(_: *const libc::c_char, _: &Event) {}
 
@@ -1035,7 +1033,7 @@ mod test {
 
         let mut client = unsafe {
             Client::zws_client_new(
-                app_name,
+                c"myapp".as_ptr(),
                 uri,
                 topics.as_ptr(),
                 topics.len(),

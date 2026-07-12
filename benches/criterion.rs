@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use std::{
     collections::{HashMap, HashSet},
     net::{IpAddr, Ipv4Addr},
@@ -6,7 +8,7 @@ use std::{
     thread::sleep,
 };
 
-use criterion::*;
+use criterion::{Criterion, Throughput, criterion_group, criterion_main};
 use ipnetwork::Ipv4Network;
 use time::{Date, Duration, Time};
 use tungstenite::{client::IntoClientRequest, connect};
@@ -20,65 +22,64 @@ fn serialize(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("none", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(())))
+        b.iter(|| serde_json::to_string(&Value::from(())));
     });
     group.bench_function("bool", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(bool::default())))
+        b.iter(|| serde_json::to_string(&Value::from(bool::default())));
     });
     group.bench_function("u64", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(u64::default())))
+        b.iter(|| serde_json::to_string(&Value::from(u64::default())));
     });
     group.bench_function("i64", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(i64::default())))
+        b.iter(|| serde_json::to_string(&Value::from(i64::default())));
     });
     group.bench_function("f64", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(f64::default())))
+        b.iter(|| serde_json::to_string(&Value::from(f64::default())));
     });
     group.bench_function("timespan", |b| {
         let timespan = Duration::new(1234, 4567);
-        b.iter(|| serde_json::to_string(&Value::from(timespan)))
+        b.iter(|| serde_json::to_string(&Value::from(timespan)));
     });
     group.bench_function("timestamp", |b| {
         let timestamp = OffsetDateTime::new_utc(
             Date::from_calendar_date(2000, time::Month::April, 1).unwrap(),
             Time::from_hms(1, 2, 3).unwrap(),
         );
-        b.iter(|| serde_json::to_string(&Value::from(timestamp)))
+        b.iter(|| serde_json::to_string(&Value::from(timestamp)));
     });
     group.bench_function("string", |b| {
         let string = "";
-        b.iter(|| serde_json::to_string(&Value::from(string)))
+        b.iter(|| serde_json::to_string(&Value::from(string)));
     });
     group.bench_function("address", |b| {
         let addr = IpAddr::V4(Ipv4Addr::new(127, 0, 0, 0));
-        b.iter(|| serde_json::to_string(&Value::from(addr)))
+        b.iter(|| serde_json::to_string(&Value::from(addr)));
     });
     group.bench_function("subnet", |b| {
         let subnet = IpNetwork::V4(Ipv4Network::new(Ipv4Addr::new(127, 0, 0, 0), 8).unwrap());
-        b.iter(|| serde_json::to_string(&Value::from(subnet)))
+        b.iter(|| serde_json::to_string(&Value::from(subnet)));
     });
     group.bench_function("port", |b| {
         let port = Port::new(8080, Protocol::TCP);
-        b.iter(|| serde_json::to_string(&Value::from(port)))
+        b.iter(|| serde_json::to_string(&Value::from(port)));
     });
     group.bench_function("vector", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(Vec::<bool>::new())))
+        b.iter(|| serde_json::to_string(&Value::from(Vec::<bool>::new())));
     });
     group.bench_function("set", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(HashSet::<bool>::new())))
+        b.iter(|| serde_json::to_string(&Value::from(HashSet::<bool>::new())));
     });
     group.bench_function("map", |b| {
-        b.iter(|| serde_json::to_string(&Value::from(HashMap::<bool, i64>::new())))
+        b.iter(|| serde_json::to_string(&Value::from(HashMap::<bool, i64>::new())));
     });
 
     group.bench_function("event", |b| {
-        b.iter(|| Message::new_data("ping", Event::new("ping", [1])))
+        b.iter(|| Message::new_data("ping", Event::new("ping", [1])));
     });
 
     group.finish();
 }
 
-#[ignore]
 fn zeek_roundtrip(c: &mut Criterion) {
     let mut group = c.benchmark_group("zeek_roundtrip");
     group.throughput(Throughput::Elements(1));
@@ -125,13 +126,11 @@ fn zeek_roundtrip(c: &mut Criterion) {
         let topic = "/ping";
 
         // Subscribe the client.
-        stream
-            .send(Subscriptions::from(&[topic]).try_into().unwrap())
-            .unwrap();
+        stream.send(Subscriptions::from(&[topic]).into()).unwrap();
 
         b.iter(|| {
             let msg = Message::new_data(topic, Event::new("ping", ["hi!"]));
-            stream.write(msg.try_into().unwrap()).unwrap();
+            stream.write(msg.into()).unwrap();
 
             while let Ok(resp) = stream.read() {
                 // Ignore non-Zeek payloads, most of the time pings, or
@@ -154,6 +153,7 @@ fn zeek_roundtrip(c: &mut Criterion) {
         });
 
         let _ = zeek.kill();
+        let _ = zeek.wait();
     });
 
     group.finish();

@@ -13,12 +13,12 @@ use zeek_websocket::{Event, protocol::Binding};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    const TOPIC: &str = "/ping";
+
     let request = "ws://127.0.0.1:8080/v1/messages/json".into_client_request()?;
 
     let (stream, _response) = connect_async(request).await?;
     let (mut tx, mut rx) = stream.split();
-
-    const TOPIC: &str = "/ping";
 
     let (mut inbox, mut outbox) = Binding::new(&[TOPIC]).split();
 
@@ -28,7 +28,7 @@ async fn main() -> anyhow::Result<()> {
     let duration = Duration::from_secs(10);
     eprintln!("sending for {duration:?}");
 
-    let count = num_sent.clone();
+    let count = Arc::clone(&num_sent);
     let sender = tokio::spawn(async move {
         let start = Instant::now();
         let end = start + duration;
@@ -37,7 +37,9 @@ async fn main() -> anyhow::Result<()> {
             outbox.enqueue_event(TOPIC, Event::new("ping", ["hohi"]));
 
             while let Some(data) = outbox.next_data() {
-                tx.send(tungstenite::Message::binary(data)).await.unwrap();
+                tx.send(tungstenite::Message::binary(data))
+                    .await
+                    .expect("could not enqueue message");
             }
 
             count.fetch_add(1, atomic::Ordering::Relaxed);
@@ -49,7 +51,7 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let count = num_received.clone();
+    let count = Arc::clone(&num_received);
     let receiver = tokio::spawn(async move {
         loop {
             let Ok(Some(received)) = rx.try_next().await else {
@@ -60,10 +62,10 @@ async fn main() -> anyhow::Result<()> {
                 inbox.handle(msg);
             }
 
-            if let Some((_topic, event)) = inbox.next_event() {
-                if event.name == "pong" {
-                    count.fetch_add(1, atomic::Ordering::Relaxed);
-                }
+            if let Some((_topic, event)) = inbox.next_event()
+                && event.name == "pong"
+            {
+                count.fetch_add(1, atomic::Ordering::Relaxed);
             }
         }
         // in_.handle_input(received);
