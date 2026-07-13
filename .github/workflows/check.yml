@@ -19,7 +19,7 @@ jobs:
     name: Run tests
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           submodules: recursive
           persist-credentials: false
@@ -46,11 +46,11 @@ jobs:
           - '3.13'
           - '3.14'
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39
+      - uses: astral-sh/setup-uv@d31148d669074a8d0a63714ba94f3201e7020bc3
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -63,7 +63,7 @@ jobs:
     name: C bindings
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           submodules: recursive
           persist-credentials: false
@@ -91,7 +91,7 @@ jobs:
     name: Node bindings
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           submodules: recursive
           persist-credentials: false
@@ -115,7 +115,7 @@ jobs:
     name: Run pre-commit hooks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           submodules: recursive
           persist-credentials: false
@@ -124,14 +124,14 @@ jobs:
           channel: stable
           bins: cargo-hack
           components: clippy,rustfmt
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405
-      - uses: j178/prek-action@bdca6f102f98e2b4c7029491a53dfd366469e33d
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
+      - uses: j178/prek-action@e98a699c41eb69ab013a45817a0406469a748f8d
 
   benchmarks:
     name: Run benchmarks
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
         with:
           submodules: recursive
           persist-credentials: false
@@ -147,7 +147,7 @@ jobs:
         run: cargo codspeed build
 
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@c145068895e045cc725ee76fcd2307624b65c3af
+        uses: CodSpeedHQ/action@a4a36bb07c0638b0b4ca52bf1f3dad1b4289e52f
         with:
           run: cargo codspeed run
           token: ${{ secrets.CODSPEED_TOKEN }}
