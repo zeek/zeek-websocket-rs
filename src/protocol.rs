@@ -257,6 +257,8 @@ pub enum ProtocolError {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+
     use crate::{
         protocol::{Binding, ProtocolError},
         types::{Data, Event, Message, Subscriptions, Value},
@@ -280,14 +282,14 @@ mod test {
 
         // Handle subscription.
         Subscriptions::try_from(tungstenite::Message::binary(conn.outgoing().unwrap())).unwrap();
-        conn.handle_incoming(ack().into()).unwrap();
+        conn.handle_incoming(ack()).unwrap();
 
         // No new input received.
         assert_eq!(conn.inbox.next_message(), None);
         assert_eq!(conn.receive_event(), Ok(None));
 
         // Receive a single event.
-        conn.handle_incoming(Message::new_data(topic, Event::new("ping", [(); 0])).into())
+        conn.handle_incoming(Message::new_data(topic, Event::new("ping", [(); 0])))
             .unwrap();
 
         assert!(matches!(
@@ -305,7 +307,7 @@ mod test {
 
         // Handle subscription.
         Subscriptions::try_from(tungstenite::Message::binary(conn.outgoing().unwrap())).unwrap();
-        conn.handle_incoming(ack().into()).unwrap();
+        conn.handle_incoming(ack()).unwrap();
 
         // Send an event.
         conn.publish_event("foo", Event::new("ping", [(); 0]));
@@ -328,7 +330,7 @@ mod test {
 
         // Handle subscription.
         Subscriptions::try_from(tungstenite::Message::binary(outbox.next_data().unwrap())).unwrap();
-        inbox.handle(ack().into());
+        inbox.handle(ack());
 
         assert!(matches!(inbox.next_message(), Some(Message::Ack { .. })));
     }
@@ -339,11 +341,11 @@ mod test {
 
         // Handle subscription. The call to `handle_incoming` consumes the ACK.
         Subscriptions::try_from(tungstenite::Message::binary(conn.outgoing().unwrap())).unwrap();
-        conn.handle_incoming(ack().into()).unwrap();
+        conn.handle_incoming(ack()).unwrap();
 
         // Detect if we see another, unexpected ACK.
         assert_eq!(
-            conn.handle_incoming(ack().into()),
+            conn.handle_incoming(ack()),
             Err(ProtocolError::AlreadySubscribed)
         );
     }

@@ -200,7 +200,7 @@ impl<C: ZeekClient> Service<C> {
                     break;
                 }
                 message => {
-                    return Err(Error::Transport(format!("expected ACK, got '{message:?}'")))?;
+                    return Err(Error::Transport(format!("expected ACK, got '{message:?}'")));
                 }
             }
         }
@@ -355,6 +355,8 @@ impl From<DeserializationError> for Error {
 
 #[cfg(test)]
 mod test {
+    #![allow(clippy::unwrap_used)]
+
     use tokio::sync::mpsc::{self};
     use zeek_websocket_types::{Event, Subscriptions};
 
@@ -367,7 +369,8 @@ mod test {
     #[tokio::test]
     async fn unreachable_remote() {
         struct Client {
-            _outbox: Outbox,
+            #[allow(unused)]
+            outbox: Outbox,
         }
 
         impl ZeekClient for Client {
@@ -376,7 +379,7 @@ mod test {
             async fn error(&mut self, _error: ProtocolError) {}
         }
 
-        let service = Service::new(|_outbox| Client { _outbox });
+        let service = Service::new(|outbox| Client { outbox });
 
         let status = service
             .serve(
@@ -393,22 +396,22 @@ mod test {
         static TOPIC: &str = "/topic";
 
         struct C {
-            _outbox: Outbox,
+            outbox: Outbox,
             seen_events: mpsc::Sender<(String, Event)>,
         }
 
         impl C {
             fn new(outbox: Outbox, seen_events: mpsc::Sender<(String, Event)>) -> Self {
                 Self {
+                    outbox,
                     seen_events,
-                    _outbox: outbox,
                 }
             }
         }
 
         impl ZeekClient for C {
             async fn connected(&mut self, _endpoint: String, _version: String) {
-                self._outbox
+                self.outbox
                     .send(TOPIC.into(), Event::new("echo", [42]))
                     .await
                     .unwrap();

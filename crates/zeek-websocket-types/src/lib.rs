@@ -735,7 +735,6 @@ mod test {
 
     use std::{
         collections::{BTreeMap, HashMap, HashSet},
-        i64,
         net::IpAddr,
         str::FromStr,
     };
@@ -814,7 +813,7 @@ mod test {
     fn message_try_from_into_tungstenite() {
         let event = Message::new_data("my_topic", Event::new("my_event", [1]));
 
-        let msg: tungstenite::Message = event.clone().try_into().unwrap();
+        let msg: tungstenite::Message = event.clone().into();
         let event2: Message = msg.try_into().unwrap();
 
         assert_eq!(event, event2);
@@ -831,7 +830,7 @@ mod test {
     fn subscriptions_try_from_into_tungstenite() {
         let subscriptions = Subscriptions::from(&["a", "b"]);
 
-        let msg: tungstenite::Message = subscriptions.clone().try_into().unwrap();
+        let msg: tungstenite::Message = subscriptions.clone().into();
         let subscriptions2: Subscriptions = msg.try_into().unwrap();
 
         assert_eq!(subscriptions, subscriptions2);

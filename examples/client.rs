@@ -1,3 +1,5 @@
+#![allow(clippy::unwrap_used)]
+
 use zeek_websocket::{
     Event, Subscriptions,
     client::Outbox,
@@ -20,10 +22,10 @@ impl ZeekClient for Client {
         }
     }
 
-    async fn event(&mut self, _topic: String, _event: zeek_websocket::Event) {
+    async fn event(&mut self, _topic: String, event: zeek_websocket::Event) {
         // If we see the `pong` from the `ping` we sent when we connected, drop the sender to
         // indicate we are done.
-        if &_event.name == "pong" {
+        if &event.name == "pong" {
             self.outbox.take();
         }
     }
