@@ -87,7 +87,7 @@ pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"] }
 quote = { version = "1.0.43", default-features = false }
 serde = { version = "1.0.228", default-features = false }
 serde_json = { version = "1.0.149", features = ["std"], default-features = false }
-syn = { version = "2.0.114", features = ["derive", "proc-macro"], default-features = false }
+syn = { version = "3.0.0", features = ["derive", "proc-macro"], default-features = false }
 thiserror = { version = "2.0.18", default-features = false }
 tokio = { version = "1.49.0", default-features = false }
 tokio-tungstenite = { version = "0.29.0", features = ["connect"], default-features = false }
