@@ -188,7 +188,36 @@ impl Value {
             _ => return Ok(None),
         };
 
-        let fields: PyResult<Vec<_>> = values.iter().map(|x| x.value(py)).collect();
+        let typing = py.import("typing")?;
+        let hints = typing.call_method1(intern!(py, "get_type_hints"), (&target_type,))?;
+        let value_type = py
+            .import(intern!(py, "zeek_websocket"))?
+            .getattr(intern!(py, "Value"))?;
+        let enum_type = py.import("enum")?.getattr(intern!(py, "Enum"))?;
+
+        let dc_fields = dataclasses.call_method1(intern!(py, "fields"), (&target_type,))?;
+        let fields: PyResult<Vec<_>> = values
+            .iter()
+            .zip(dc_fields.try_iter()?)
+            .map(|(val, field)| {
+                let field = field?;
+                let name = field.getattr(intern!(py, "name"))?;
+                let hint = hints.get_item(name)?;
+                if hint.is(&value_type) {
+                    (*val).clone().into_py_any(py)
+                } else if let Ok(ty) = hint.extract::<Py<PyType>>() {
+                    if ty.bind(py).is_subclass(&enum_type).unwrap_or(false) {
+                        let v = val.value(py)?;
+                        ty.call_method1(py, "__getitem__", (&v,))
+                    } else {
+                        let v = val.value(py)?;
+                        ty.call1(py, (&v,)).or_else(|_| Ok(v))
+                    }
+                } else {
+                    val.value(py)
+                }
+            })
+            .collect();
 
         Ok(Some(target_type.call(
             py,
