@@ -182,17 +182,19 @@ impl Value {
             )));
         }
 
-        let fields: PyResult<Vec<_>> = match self {
-            Value::Vector(values) => values.iter().map(|x| x.value(py)).collect(),
-            Value::Record(fields) => fields.values().map(|x| x.value(py)).collect(),
+        let values: Vec<_> = match self {
+            Value::Vector(values) => values.iter().collect(),
+            Value::Record(fields) => fields.values().collect(),
             _ => return Ok(None),
         };
 
-        return Ok(Some(target_type.call(
+        let fields: PyResult<Vec<_>> = values.iter().map(|x| x.value(py)).collect();
+
+        Ok(Some(target_type.call(
             py,
             PyTuple::new(py, fields?)?,
             None,
-        )?));
+        )?))
     }
 
     /// Convert to a given target enum instance.
