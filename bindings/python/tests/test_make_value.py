@@ -225,6 +225,29 @@ def test_as_record_ignores_class_vars() -> None:
     assert value.as_record(X) == X(a=1, b="hi")
 
 
+def test_as_record_matches_fields_by_name() -> None:
+    # Field declaration order deliberately differs from alphabetical to verify
+    # that matching is by name, not by position.
+    @dataclass
+    class X:
+        z: float
+        a: str
+
+    value = Value.Record({"a": Value.String("hello"), "z": Value.Real(42)})
+    assert value.as_record(X) == X(42, "hello")
+
+
+def test_as_record_skips_missing_fields() -> None:
+    @dataclass
+    class X:
+        a: float
+        b: float = 99.0
+        c: str = "default"
+
+    value = Value.Record({"a": Value.Real(1), "c": Value.String("hi")})
+    assert value.as_record(X) == X(a=1, b=99.0, c="hi")
+
+
 def test_record_other() -> None:
     class Y:
         c: float

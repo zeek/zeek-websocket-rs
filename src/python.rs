@@ -169,6 +169,13 @@ impl Value {
     /// `T` must refer to a class which derives from `dataclass.dataclass` or similar.
     #[allow(clippy::needless_pass_by_value)]
     fn as_record(&self, py: Python, target_type: Py<PyType>) -> PyResult<Option<Py<PyAny>>> {
+        enum FieldHint {
+            ValueType,
+            Enum(Py<PyType>),
+            Coerce(Py<PyType>),
+            Plain,
+        }
+
         let dataclasses = py.import("dataclasses")?;
         let is_dataclass_fn = dataclasses.getattr(intern!(py, "is_dataclass"))?;
 
@@ -182,48 +189,68 @@ impl Value {
             )));
         }
 
-        let values: Vec<_> = match self {
-            Value::Vector(values) => values.iter().collect(),
-            Value::Record(fields) => fields.values().collect(),
-            _ => return Ok(None),
-        };
-
         let typing = py.import("typing")?;
-        let hints = typing.call_method1(intern!(py, "get_type_hints"), (&target_type,))?;
+        let raw_hints = typing.call_method1(intern!(py, "get_type_hints"), (&target_type,))?;
         let value_type = py
             .import(intern!(py, "zeek_websocket"))?
             .getattr(intern!(py, "Value"))?;
         let enum_type = py.import("enum")?.getattr(intern!(py, "Enum"))?;
 
         let dc_fields = dataclasses.call_method1(intern!(py, "fields"), (&target_type,))?;
-        let fields: PyResult<Vec<_>> = values
-            .iter()
-            .zip(dc_fields.try_iter()?)
-            .map(|(val, field)| {
-                let field = field?;
-                let name = field.getattr(intern!(py, "name"))?;
-                let hint = hints.get_item(name)?;
-                if hint.is(&value_type) {
-                    (*val).clone().into_py_any(py)
+        let hints: Vec<(String, FieldHint)> = dc_fields
+            .try_iter()?
+            .map(|item| {
+                let item = item?;
+                let name: String = item.getattr(intern!(py, "name"))?.extract()?;
+                let hint = raw_hints.get_item(&name)?;
+
+                let field_hint = if hint.is(&value_type) {
+                    FieldHint::ValueType
                 } else if let Ok(ty) = hint.extract::<Py<PyType>>() {
                     if ty.bind(py).is_subclass(&enum_type).unwrap_or(false) {
-                        let v = val.value(py)?;
-                        ty.call_method1(py, "__getitem__", (&v,))
+                        FieldHint::Enum(ty)
                     } else {
-                        let v = val.value(py)?;
-                        ty.call1(py, (&v,)).or_else(|_| Ok(v))
+                        FieldHint::Coerce(ty)
                     }
                 } else {
-                    val.value(py)
-                }
-            })
-            .collect();
+                    FieldHint::Plain
+                };
 
-        Ok(Some(target_type.call(
-            py,
-            PyTuple::new(py, fields?)?,
-            None,
-        )?))
+                Ok((name, field_hint))
+            })
+            .collect::<PyResult<_>>()?;
+
+        let typed_values: Vec<_> = match self {
+            Value::Vector(values) => values
+                .iter()
+                .zip(hints.iter())
+                .map(|(v, (name, hint))| (name.as_str(), v, hint))
+                .collect(),
+            Value::Record(fields) => hints
+                .iter()
+                .filter_map(|(name, hint)| fields.get(name).map(|v| (name.as_str(), v, hint)))
+                .collect(),
+            _ => return Ok(None),
+        };
+
+        let kwargs = PyDict::new(py);
+        for (name, val, hint) in &typed_values {
+            let converted = match hint {
+                FieldHint::ValueType => (*val).clone().into_py_any(py),
+                FieldHint::Enum(ty) => {
+                    let v = val.value(py)?;
+                    ty.call_method1(py, "__getitem__", (&v,))
+                }
+                FieldHint::Coerce(ty) => {
+                    let v = val.value(py)?;
+                    ty.call1(py, (&v,)).or_else(|_| Ok(v))
+                }
+                FieldHint::Plain => val.value(py),
+            }?;
+            kwargs.set_item(name, converted)?;
+        }
+
+        Ok(Some(target_type.call(py, (), Some(&kwargs))?))
     }
 
     /// Convert to a given target enum instance.
