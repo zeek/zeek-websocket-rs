@@ -144,28 +144,39 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Value {
 
 enum FieldHint {
     ValueType,
+    Dataclass(Py<PyType>),
     Enum(Py<PyType>),
     Coerce(Py<PyType>),
     Plain,
 }
 
 fn classify_type(
+    py: Python,
     ty: &Bound<PyType>,
     value_type: &Bound<PyAny>,
     enum_type: &Bound<PyAny>,
-) -> FieldHint {
+    is_dataclass_fn: &Bound<PyAny>,
+) -> PyResult<FieldHint> {
     if ty.is(value_type) {
-        FieldHint::ValueType
+        Ok(FieldHint::ValueType)
     } else if ty.is_subclass(enum_type).unwrap_or(false) {
-        FieldHint::Enum(ty.clone().unbind())
+        Ok(FieldHint::Enum(ty.clone().unbind()))
+    } else if is_dataclass_fn
+        .call1(PyTuple::new(py, [ty])?)?
+        .extract::<bool>()?
+    {
+        Ok(FieldHint::Dataclass(ty.clone().unbind()))
     } else {
-        FieldHint::Coerce(ty.clone().unbind())
+        Ok(FieldHint::Coerce(ty.clone().unbind()))
     }
 }
 
 fn convert_field(val: &Value, hint: &FieldHint, py: Python) -> PyResult<Py<PyAny>> {
     match hint {
         FieldHint::ValueType => (*val).clone().into_py_any(py),
+        FieldHint::Dataclass(ty) => val.as_record(py, ty.clone())?.ok_or_else(|| {
+            PyTypeError::new_err(format!("cannot convert value {val:?} to nested dataclass"))
+        }),
         FieldHint::Enum(ty) => {
             let v = val.value(py)?;
             ty.call_method1(py, "__getitem__", (&v,))
@@ -234,7 +245,7 @@ impl Value {
                 let hint = raw_hints.get_item(&name)?;
 
                 let field_hint = if let Ok(ty) = hint.extract::<Py<PyType>>() {
-                    classify_type(ty.bind(py), &value_type, &enum_type)
+                    classify_type(py, ty.bind(py), &value_type, &enum_type, &is_dataclass_fn)?
                 } else {
                     FieldHint::Plain
                 };

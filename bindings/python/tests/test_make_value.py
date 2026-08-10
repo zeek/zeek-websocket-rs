@@ -1,5 +1,6 @@
 import dataclasses
 import enum
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from ipaddress import IPv4Address
@@ -246,6 +247,36 @@ def test_as_record_skips_missing_fields() -> None:
 
     value = Value.Record({"a": Value.Real(1), "c": Value.String("hi")})
     assert value.as_record(X) == X(a=1, b=99.0, c="hi")
+
+
+def test_as_record_nested_dataclass() -> None:
+    @dataclass
+    class Inner:
+        x: int
+        y: str
+
+    @dataclass
+    class Outer:
+        name: str
+        inner: Inner
+
+    value = Value.Record(
+        {"name": Value.String("hello"), "inner": Value.Record({"x": 42, "y": "world"})}
+    )
+    result = value.as_record(Outer)
+    assert result == Outer("hello", Inner(42, "world"))
+    assert type(result.inner) is Inner
+
+    value_bad = Value.Record(
+        {"name": Value.String("hello"), "inner": Value.String("not a record")}
+    )
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            'cannot convert value String("not a record") to nested dataclass'
+        ),
+    ):
+        value_bad.as_record(Outer)
 
 
 def test_record_other() -> None:
