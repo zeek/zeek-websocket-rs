@@ -297,6 +297,28 @@ def test_as_record_optional() -> None:
     assert result == X(None, None)
 
 
+def test_as_record_generic_list() -> None:
+    @dataclass
+    class X:
+        items: list[int]
+
+    value = Value.Record({"items": Value.Vector([1.0, 2.0, 3.0])})
+    result = value.as_record(X)
+    assert result == X([1, 2, 3])
+    assert all(type(x) is int for x in result.items)
+
+
+def test_as_record_generic_set() -> None:
+    @dataclass
+    class X:
+        tags: set[str]
+
+    value = Value.Record({"tags": Value.Set({"a", "b"})})
+    result = value.as_record(X)
+    assert result is not None
+    assert result.tags == frozenset({"a", "b"})
+
+
 def test_record_other() -> None:
     class Y:
         c: float
