@@ -142,6 +142,42 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Value {
     }
 }
 
+enum FieldHint {
+    ValueType,
+    Enum(Py<PyType>),
+    Coerce(Py<PyType>),
+    Plain,
+}
+
+fn classify_type(
+    ty: &Bound<PyType>,
+    value_type: &Bound<PyAny>,
+    enum_type: &Bound<PyAny>,
+) -> FieldHint {
+    if ty.is(value_type) {
+        FieldHint::ValueType
+    } else if ty.is_subclass(enum_type).unwrap_or(false) {
+        FieldHint::Enum(ty.clone().unbind())
+    } else {
+        FieldHint::Coerce(ty.clone().unbind())
+    }
+}
+
+fn convert_field(val: &Value, hint: &FieldHint, py: Python) -> PyResult<Py<PyAny>> {
+    match hint {
+        FieldHint::ValueType => (*val).clone().into_py_any(py),
+        FieldHint::Enum(ty) => {
+            let v = val.value(py)?;
+            ty.call_method1(py, "__getitem__", (&v,))
+        }
+        FieldHint::Coerce(ty) => {
+            let v = val.value(py)?;
+            ty.call1(py, (&v,)).or_else(|_| Ok(v))
+        }
+        FieldHint::Plain => val.value(py),
+    }
+}
+
 #[pymethods]
 impl Value {
     fn __repr__(&self) -> String {
@@ -169,13 +205,6 @@ impl Value {
     /// `T` must refer to a class which derives from `dataclass.dataclass` or similar.
     #[allow(clippy::needless_pass_by_value)]
     fn as_record(&self, py: Python, target_type: Py<PyType>) -> PyResult<Option<Py<PyAny>>> {
-        enum FieldHint {
-            ValueType,
-            Enum(Py<PyType>),
-            Coerce(Py<PyType>),
-            Plain,
-        }
-
         let dataclasses = py.import("dataclasses")?;
         let is_dataclass_fn = dataclasses.getattr(intern!(py, "is_dataclass"))?;
 
@@ -204,14 +233,8 @@ impl Value {
                 let name: String = item.getattr(intern!(py, "name"))?.extract()?;
                 let hint = raw_hints.get_item(&name)?;
 
-                let field_hint = if hint.is(&value_type) {
-                    FieldHint::ValueType
-                } else if let Ok(ty) = hint.extract::<Py<PyType>>() {
-                    if ty.bind(py).is_subclass(&enum_type).unwrap_or(false) {
-                        FieldHint::Enum(ty)
-                    } else {
-                        FieldHint::Coerce(ty)
-                    }
+                let field_hint = if let Ok(ty) = hint.extract::<Py<PyType>>() {
+                    classify_type(ty.bind(py), &value_type, &enum_type)
                 } else {
                     FieldHint::Plain
                 };
@@ -235,19 +258,7 @@ impl Value {
 
         let kwargs = PyDict::new(py);
         for (name, val, hint) in &typed_values {
-            let converted = match hint {
-                FieldHint::ValueType => (*val).clone().into_py_any(py),
-                FieldHint::Enum(ty) => {
-                    let v = val.value(py)?;
-                    ty.call_method1(py, "__getitem__", (&v,))
-                }
-                FieldHint::Coerce(ty) => {
-                    let v = val.value(py)?;
-                    ty.call1(py, (&v,)).or_else(|_| Ok(v))
-                }
-                FieldHint::Plain => val.value(py),
-            }?;
-            kwargs.set_item(name, converted)?;
+            kwargs.set_item(name, convert_field(val, hint, py)?)?;
         }
 
         Ok(Some(target_type.call(py, (), Some(&kwargs))?))
