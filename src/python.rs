@@ -150,6 +150,7 @@ enum FieldHint {
     Optional(Box<FieldHint>),
     List(Box<FieldHint>),
     Set(Box<FieldHint>),
+    Table(Box<FieldHint>, Box<FieldHint>),
     Plain,
 }
 
@@ -196,6 +197,7 @@ fn build_field_hints(
     let builtins = py.import("builtins")?;
     let list_type = builtins.getattr(intern!(py, "list"))?;
     let set_type = builtins.getattr(intern!(py, "set"))?;
+    let dict_type = builtins.getattr(intern!(py, "dict"))?;
 
     let classify_generic_arg = |hint: &Bound<PyAny>| -> PyResult<FieldHint> {
         if let Ok(ty) = hint.extract::<Py<PyType>>() {
@@ -241,6 +243,14 @@ fn build_field_hints(
                 let args = get_args.call1((&hint,))?;
                 let elem = args.get_item(0)?;
                 FieldHint::Set(Box::new(classify_generic_arg(&elem)?))
+            } else if origin.is(&dict_type) {
+                let args = get_args.call1((&hint,))?;
+                let key = args.get_item(0)?;
+                let val = args.get_item(1)?;
+                FieldHint::Table(
+                    Box::new(classify_generic_arg(&key)?),
+                    Box::new(classify_generic_arg(&val)?),
+                )
             } else {
                 FieldHint::Plain
             };
@@ -287,6 +297,19 @@ fn convert_field(val: &Value, hint: &FieldHint, py: Python) -> PyResult<Py<PyAny
                 .map(|v| convert_field(v, elem_hint, py))
                 .collect();
             pyo3::types::PyFrozenSet::new(py, &converted?)?.into_py_any(py)
+        }
+        FieldHint::Table(key_hint, val_hint) => {
+            let Value::Table(entries) = val else {
+                return val.value(py);
+            };
+            let dict = PyDict::new(py);
+            for (k, v) in entries {
+                dict.set_item(
+                    convert_field(k, key_hint, py)?,
+                    convert_field(v, val_hint, py)?,
+                )?;
+            }
+            dict.into_py_any(py)
         }
         FieldHint::Plain => val.value(py),
     }

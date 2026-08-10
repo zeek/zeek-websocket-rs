@@ -319,6 +319,18 @@ def test_as_record_generic_set() -> None:
     assert result.tags == frozenset({"a", "b"})
 
 
+def test_as_record_generic_dict() -> None:
+    @dataclass
+    class X:
+        counts: dict[str, int]
+
+    value = Value.Record({"counts": Value.Table({"a": 1, "b": 2})})
+    result = value.as_record(X)
+    assert result is not None
+    assert result.counts == {"a": 1, "b": 2}
+    assert all(isinstance(v, int) for v in result.counts.values())
+
+
 def test_record_other() -> None:
     class Y:
         c: float
