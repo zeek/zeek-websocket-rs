@@ -279,6 +279,24 @@ def test_as_record_nested_dataclass() -> None:
         value_bad.as_record(Outer)
 
 
+def test_as_record_optional() -> None:
+    class Color(enum.Enum):
+        RED = 1
+
+    @dataclass
+    class X:
+        a: int | None
+        b: Color | None
+
+    present = Value.Record({"a": 42, "b": Value.Enum("RED")})
+    result = present.as_record(X)
+    assert result == X(42, Color.RED)
+
+    absent = Value.Record({"a": Value.None_(), "b": Value.None_()})
+    result = absent.as_record(X)
+    assert result == X(None, None)
+
+
 def test_record_other() -> None:
     class Y:
         c: float

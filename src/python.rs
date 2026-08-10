@@ -147,6 +147,7 @@ enum FieldHint {
     Dataclass(Py<PyType>),
     Enum(Py<PyType>),
     Coerce(Py<PyType>),
+    Optional(Box<FieldHint>),
     Plain,
 }
 
@@ -185,6 +186,10 @@ fn convert_field(val: &Value, hint: &FieldHint, py: Python) -> PyResult<Py<PyAny
             let v = val.value(py)?;
             ty.call1(py, (&v,)).or_else(|_| Ok(v))
         }
+        FieldHint::Optional(inner) => match val {
+            Value::None_() => Ok(py.None()),
+            _ => convert_field(val, inner, py),
+        },
         FieldHint::Plain => val.value(py),
     }
 }
@@ -236,6 +241,12 @@ impl Value {
             .getattr(intern!(py, "Value"))?;
         let enum_type = py.import("enum")?.getattr(intern!(py, "Enum"))?;
 
+        let get_origin = typing.getattr(intern!(py, "get_origin"))?;
+        let get_args = typing.getattr(intern!(py, "get_args"))?;
+        let typing_union = typing.getattr(intern!(py, "Union"))?;
+        let types_union = py.import("types")?.getattr(intern!(py, "UnionType"))?;
+        let none_type = py.eval(c"type(None)", None, None)?;
+
         let dc_fields = dataclasses.call_method1(intern!(py, "fields"), (&target_type,))?;
         let hints: Vec<(String, FieldHint)> = dc_fields
             .try_iter()?
@@ -247,7 +258,33 @@ impl Value {
                 let field_hint = if let Ok(ty) = hint.extract::<Py<PyType>>() {
                     classify_type(py, ty.bind(py), &value_type, &enum_type, &is_dataclass_fn)?
                 } else {
-                    FieldHint::Plain
+                    let origin = get_origin.call1((&hint,))?;
+                    if origin.is(&typing_union) || origin.is(&types_union) {
+                        let args: Vec<_> = get_args
+                            .call1((&hint,))?
+                            .try_iter()?
+                            .filter_map(|a| {
+                                let a = a.ok()?;
+                                if a.is(&none_type) { None } else { Some(a) }
+                            })
+                            .collect();
+                        match args.as_slice() {
+                            [inner] if let Ok(ty) = inner.extract::<Py<PyType>>() => {
+                                let inner_hint = classify_type(
+                                    py,
+                                    ty.bind(py),
+                                    &value_type,
+                                    &enum_type,
+                                    &is_dataclass_fn,
+                                )?;
+                                FieldHint::Optional(Box::new(inner_hint))
+                            }
+                            [_] => FieldHint::Optional(Box::new(FieldHint::Plain)),
+                            _ => FieldHint::Plain,
+                        }
+                    } else {
+                        FieldHint::Plain
+                    }
                 };
 
                 Ok((name, field_hint))
