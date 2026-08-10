@@ -147,7 +147,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             "only structs with named fields can derive ZeekType"
         );
     };
-    let fields: Vec<_> = fields.named.iter().cloned().collect();
+    let fields: Vec<_> = fields.named.iter().collect();
 
     let value_from = impl_value_from(name, &fields);
     let from_value = impl_from_value(name, &fields);
@@ -160,7 +160,7 @@ pub fn derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     .into()
 }
 
-fn impl_value_from(name: &Ident, fields: &[Field]) -> TokenStream {
+fn impl_value_from(name: &Ident, fields: &[&Field]) -> TokenStream {
     let fields = fields.iter().map(|f| {
         let Some(field_name) = &f.ident else {
             abort!(f.span(), "unsupported field name");
@@ -188,7 +188,7 @@ fn impl_value_from(name: &Ident, fields: &[Field]) -> TokenStream {
     }
 }
 
-fn impl_from_value(name: &Ident, fields: &[Field]) -> TokenStream {
+fn impl_from_value(name: &Ident, fields: &[&Field]) -> TokenStream {
     let xs = format_ident!("__zeek_websocket_derive__impl_from_value_{name}");
 
     // Validate that all fields are named so we can cleanly unwrap below.
