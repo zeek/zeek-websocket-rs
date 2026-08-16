@@ -125,7 +125,7 @@ jobs:
           bins: cargo-hack
           components: clippy,rustfmt
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1
-      - uses: j178/prek-action@5337cb91e0fa35a7ff31b9ca345126d8bbbcdf16
+      - uses: j178/prek-action@4e14d07f9231acabce116ccfca13b13dd9755ece
 
   benchmarks:
     name: Run benchmarks
