@@ -142,6 +142,179 @@ impl<'a, 'py> FromPyObject<'a, 'py> for Value {
     }
 }
 
+enum FieldHint {
+    ValueType,
+    Dataclass(Py<PyType>),
+    Enum(Py<PyType>),
+    Coerce(Py<PyType>),
+    Optional(Box<FieldHint>),
+    List(Box<FieldHint>),
+    Set(Box<FieldHint>),
+    Table(Box<FieldHint>, Box<FieldHint>),
+    Plain,
+}
+
+fn classify_type(
+    py: Python,
+    ty: &Bound<PyType>,
+    value_type: &Bound<PyAny>,
+    enum_type: &Bound<PyAny>,
+    is_dataclass_fn: &Bound<PyAny>,
+) -> PyResult<FieldHint> {
+    if ty.is(value_type) {
+        Ok(FieldHint::ValueType)
+    } else if ty.is_subclass(enum_type).unwrap_or(false) {
+        Ok(FieldHint::Enum(ty.clone().unbind()))
+    } else if is_dataclass_fn
+        .call1(PyTuple::new(py, [ty])?)?
+        .extract::<bool>()?
+    {
+        Ok(FieldHint::Dataclass(ty.clone().unbind()))
+    } else {
+        Ok(FieldHint::Coerce(ty.clone().unbind()))
+    }
+}
+
+fn build_field_hints(
+    py: Python,
+    target_type: &Bound<PyType>,
+    is_dataclass_fn: &Bound<PyAny>,
+) -> PyResult<Vec<(String, FieldHint)>> {
+    let dataclasses = py.import("dataclasses")?;
+    let typing = py.import("typing")?;
+    let raw_hints = typing.call_method1(intern!(py, "get_type_hints"), (target_type,))?;
+    let value_type = py
+        .import(intern!(py, "zeek_websocket"))?
+        .getattr(intern!(py, "Value"))?;
+    let enum_type = py.import("enum")?.getattr(intern!(py, "Enum"))?;
+
+    let get_origin = typing.getattr(intern!(py, "get_origin"))?;
+    let get_args = typing.getattr(intern!(py, "get_args"))?;
+    let typing_union = typing.getattr(intern!(py, "Union"))?;
+    let types = py.import("types")?;
+    let types_union = types.getattr(intern!(py, "UnionType"))?;
+    let none_type = types.getattr(intern!(py, "NoneType"))?;
+    let builtins = py.import("builtins")?;
+    let list_type = builtins.getattr(intern!(py, "list"))?;
+    let set_type = builtins.getattr(intern!(py, "set"))?;
+    let dict_type = builtins.getattr(intern!(py, "dict"))?;
+
+    let classify_generic_arg = |hint: &Bound<PyAny>| -> PyResult<FieldHint> {
+        if let Ok(ty) = hint.extract::<Py<PyType>>() {
+            classify_type(py, ty.bind(py), &value_type, &enum_type, is_dataclass_fn)
+        } else {
+            Ok(FieldHint::Plain)
+        }
+    };
+
+    let dc_fields = dataclasses.call_method1(intern!(py, "fields"), (target_type,))?;
+    dc_fields
+        .try_iter()?
+        .map(|item| {
+            let item = item?;
+            let name: String = item.getattr(intern!(py, "name"))?.extract()?;
+            let hint = raw_hints.get_item(&name)?;
+
+            let origin = get_origin.call1((&hint,))?;
+            let field_hint = if origin.is_none() {
+                if let Ok(ty) = hint.extract::<Py<PyType>>() {
+                    classify_type(py, ty.bind(py), &value_type, &enum_type, is_dataclass_fn)?
+                } else {
+                    FieldHint::Plain
+                }
+            } else if origin.is(&typing_union) || origin.is(&types_union) {
+                let args: Vec<_> = get_args
+                    .call1((&hint,))?
+                    .try_iter()?
+                    .filter_map(|a| {
+                        let a = a.ok()?;
+                        if a.is(&none_type) { None } else { Some(a) }
+                    })
+                    .collect();
+                match args.as_slice() {
+                    [inner] => FieldHint::Optional(Box::new(classify_generic_arg(inner)?)),
+                    _ => FieldHint::Plain,
+                }
+            } else if origin.is(&list_type) {
+                let args = get_args.call1((&hint,))?;
+                let elem = args.get_item(0)?;
+                FieldHint::List(Box::new(classify_generic_arg(&elem)?))
+            } else if origin.is(&set_type) {
+                let args = get_args.call1((&hint,))?;
+                let elem = args.get_item(0)?;
+                FieldHint::Set(Box::new(classify_generic_arg(&elem)?))
+            } else if origin.is(&dict_type) {
+                let args = get_args.call1((&hint,))?;
+                let key = args.get_item(0)?;
+                let val = args.get_item(1)?;
+                FieldHint::Table(
+                    Box::new(classify_generic_arg(&key)?),
+                    Box::new(classify_generic_arg(&val)?),
+                )
+            } else {
+                FieldHint::Plain
+            };
+
+            Ok((name, field_hint))
+        })
+        .collect()
+}
+
+fn convert_field(val: &Value, hint: &FieldHint, py: Python) -> PyResult<Py<PyAny>> {
+    match hint {
+        FieldHint::ValueType => (*val).clone().into_py_any(py),
+        FieldHint::Dataclass(ty) => val.as_record(py, ty.clone())?.ok_or_else(|| {
+            PyTypeError::new_err(format!("cannot convert value {val:?} to nested dataclass"))
+        }),
+        FieldHint::Enum(ty) => {
+            let v = val.value(py)?;
+            ty.call_method1(py, "__getitem__", (&v,))
+        }
+        FieldHint::Coerce(ty) => {
+            let v = val.value(py)?;
+            ty.call1(py, (&v,)).or_else(|_| Ok(v))
+        }
+        FieldHint::Optional(inner) => match val {
+            Value::None_() => Ok(py.None()),
+            _ => convert_field(val, inner, py),
+        },
+        FieldHint::List(elem_hint) => {
+            let Value::Vector(items) = val else {
+                return val.value(py);
+            };
+            let converted: PyResult<Vec<_>> = items
+                .iter()
+                .map(|v| convert_field(v, elem_hint, py))
+                .collect();
+            converted?.into_py_any(py)
+        }
+        FieldHint::Set(elem_hint) => {
+            let Value::Set(items) = val else {
+                return val.value(py);
+            };
+            let converted: PyResult<Vec<_>> = items
+                .iter()
+                .map(|v| convert_field(v, elem_hint, py))
+                .collect();
+            pyo3::types::PyFrozenSet::new(py, &converted?)?.into_py_any(py)
+        }
+        FieldHint::Table(key_hint, val_hint) => {
+            let Value::Table(entries) = val else {
+                return val.value(py);
+            };
+            let dict = PyDict::new(py);
+            for (k, v) in entries {
+                dict.set_item(
+                    convert_field(k, key_hint, py)?,
+                    convert_field(v, val_hint, py)?,
+                )?;
+            }
+            dict.into_py_any(py)
+        }
+        FieldHint::Plain => val.value(py),
+    }
+}
+
 #[pymethods]
 impl Value {
     fn __repr__(&self) -> String {
@@ -182,17 +355,27 @@ impl Value {
             )));
         }
 
-        let fields: PyResult<Vec<_>> = match self {
-            Value::Vector(values) => values.iter().map(|x| x.value(py)).collect(),
-            Value::Record(fields) => fields.values().map(|x| x.value(py)).collect(),
+        let hints = build_field_hints(py, target_type.bind(py), &is_dataclass_fn)?;
+
+        let typed_values: Vec<_> = match self {
+            Value::Vector(values) => values
+                .iter()
+                .zip(hints.iter())
+                .map(|(v, (name, hint))| (name.as_str(), v, hint))
+                .collect(),
+            Value::Record(fields) => hints
+                .iter()
+                .filter_map(|(name, hint)| fields.get(name).map(|v| (name.as_str(), v, hint)))
+                .collect(),
             _ => return Ok(None),
         };
 
-        return Ok(Some(target_type.call(
-            py,
-            PyTuple::new(py, fields?)?,
-            None,
-        )?));
+        let kwargs = PyDict::new(py);
+        for (name, val, hint) in &typed_values {
+            kwargs.set_item(name, convert_field(val, hint, py)?)?;
+        }
+
+        Ok(Some(target_type.call(py, (), Some(&kwargs))?))
     }
 
     /// Convert to a given target enum instance.

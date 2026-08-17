@@ -1,8 +1,10 @@
 import dataclasses
 import enum
+import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from ipaddress import IPv4Address
+from typing import ClassVar
 
 import pytest
 from zeek_websocket import Protocol, Value, make_value
@@ -155,6 +157,178 @@ def test_vector_as_record() -> None:
 
     value = Value.Vector([1, "2"])
     assert value.as_record(X) == X(1, "2")
+
+
+def test_as_record_preserves_value_types() -> None:
+    @dataclass
+    class X:
+        a: Value.Integer
+        b: Value.Count
+        c: str
+
+    value = Value.Record(
+        {"a": Value.Integer(-1), "b": Value.Count(2), "c": Value.String("hi")}
+    )
+    result = value.as_record(X)
+    assert result == X(Value.Integer(-1), Value.Count(2), "hi")
+    assert type(result.a) is Value.Integer
+    assert type(result.b) is Value.Count
+
+    @dataclass
+    class Y:
+        e: Value.Enum
+        s: str
+
+    value2 = Value.Record({"e": Value.Enum("variant"), "s": Value.String("text")})
+    result2 = value2.as_record(Y)
+    assert result2 == Y(Value.Enum("variant"), "text")
+    assert type(result2.e) is Value.Enum
+
+
+def test_as_record_coerces_to_type_hint() -> None:
+    @dataclass
+    class X:
+        a: float
+        b: int
+        c: str
+
+    value = Value.Record({"a": 0.5, "b": 42, "c": "hello"})
+    result = value.as_record(X)
+    assert result == X(0.5, 42, "hello")
+    assert type(result.a) is float
+    assert type(result.b) is int
+    assert type(result.c) is str
+
+
+def test_as_record_coerces_enum() -> None:
+    class Color(enum.Enum):
+        RED = 1
+        BLUE = 2
+
+    @dataclass
+    class X:
+        c: Color
+
+    value = Value.Record({"c": Value.Enum("RED")})
+    result = value.as_record(X)
+    assert result == X(Color.RED)
+    assert result.c is Color.RED
+
+
+def test_as_record_ignores_class_vars() -> None:
+    @dataclass
+    class X:
+        class_level: ClassVar[int] = 42
+        a: float = 0.0
+        b: str = ""
+
+    value = Value.Vector([Value.Real(1), Value.String("hi")])
+    assert value.as_record(X) == X(a=1, b="hi")
+
+
+def test_as_record_matches_fields_by_name() -> None:
+    # Field declaration order deliberately differs from alphabetical to verify
+    # that matching is by name, not by position.
+    @dataclass
+    class X:
+        z: float
+        a: str
+
+    value = Value.Record({"a": Value.String("hello"), "z": Value.Real(42)})
+    assert value.as_record(X) == X(42, "hello")
+
+
+def test_as_record_skips_missing_fields() -> None:
+    @dataclass
+    class X:
+        a: float
+        b: float = 99.0
+        c: str = "default"
+
+    value = Value.Record({"a": Value.Real(1), "c": Value.String("hi")})
+    assert value.as_record(X) == X(a=1, b=99.0, c="hi")
+
+
+def test_as_record_nested_dataclass() -> None:
+    @dataclass
+    class Inner:
+        x: int
+        y: str
+
+    @dataclass
+    class Outer:
+        name: str
+        inner: Inner
+
+    value = Value.Record(
+        {"name": Value.String("hello"), "inner": Value.Record({"x": 42, "y": "world"})}
+    )
+    result = value.as_record(Outer)
+    assert result == Outer("hello", Inner(42, "world"))
+    assert type(result.inner) is Inner
+
+    value_bad = Value.Record(
+        {"name": Value.String("hello"), "inner": Value.String("not a record")}
+    )
+    with pytest.raises(
+        TypeError,
+        match=re.escape(
+            'cannot convert value String("not a record") to nested dataclass'
+        ),
+    ):
+        value_bad.as_record(Outer)
+
+
+def test_as_record_optional() -> None:
+    class Color(enum.Enum):
+        RED = 1
+
+    @dataclass
+    class X:
+        a: int | None
+        b: Color | None
+
+    present = Value.Record({"a": 42, "b": Value.Enum("RED")})
+    result = present.as_record(X)
+    assert result == X(42, Color.RED)
+
+    absent = Value.Record({"a": Value.None_(), "b": Value.None_()})
+    result = absent.as_record(X)
+    assert result == X(None, None)
+
+
+def test_as_record_generic_list() -> None:
+    @dataclass
+    class X:
+        items: list[int]
+
+    value = Value.Record({"items": Value.Vector([1.0, 2.0, 3.0])})
+    result = value.as_record(X)
+    assert result == X([1, 2, 3])
+    assert all(type(x) is int for x in result.items)
+
+
+def test_as_record_generic_set() -> None:
+    @dataclass
+    class X:
+        tags: set[str]
+
+    value = Value.Record({"tags": Value.Set({"a", "b"})})
+    result = value.as_record(X)
+    assert result is not None
+    assert result.tags == frozenset({"a", "b"})
+
+
+def test_as_record_generic_dict() -> None:
+    @dataclass
+    class X:
+        counts: dict[str, int]
+
+    value = Value.Record({"counts": Value.Table({"a": 1, "b": 2})})
+    result = value.as_record(X)
+    assert result is not None
+    assert result.counts == {"a": 1, "b": 2}
+    assert all(isinstance(v, int) for v in result.counts.values())
 
 
 def test_record_other() -> None:

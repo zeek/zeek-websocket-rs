@@ -82,7 +82,7 @@ napi-derive = "3.5.1"
 ordered-float = {version = "5.1.0", default-features = false }
 proc-macro-error2 = { version = "2.0.1", default-features = false }
 proc-macro2 = { version = "1.0.105", default-features = false }
-pyo3 = { version = "0.29.0", features = ["time", "ordered-float"] }
+pyo3 = { version = "0.29.0", features = ["ordered-float", "py-clone", "time"] }
 pyo3-async-runtimes = { version = "0.29.0", features = ["tokio-runtime"] }
 quote = { version = "1.0.43", default-features = false }
 serde = { version = "1.0.228", default-features = false }
