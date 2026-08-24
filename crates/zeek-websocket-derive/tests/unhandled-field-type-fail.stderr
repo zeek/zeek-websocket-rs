@@ -23,11 +23,11 @@ error[E0277]: the trait bound `Value: From<Custom>` is not satisfied
             From<i64>
             From<i8>
             From<std::string::String>
+            From<time::signed_duration::SignedDuration>
             From<u16>
             From<u32>
             From<u64>
             From<u8>
-            From<zeek_websocket_types::Duration>
             From<zeek_websocket_types::Port>
   = note: this error originates in the derive macro `ZeekType` (in Nightly builds, run with -Z macro-backtrace for more info)
 
