@@ -77,7 +77,7 @@ document-features = { version = "0.2.12", features = ["default"], default-featur
 futures-util = { version = "0.3.31", default-features = false }
 ipnetwork = { version = "0.21.1", default-features = false }
 libc = { version = "0.2.180" }
-napi = { version = "3.8.2" }
+napi = { version = "3.12.2" }
 napi-derive = "3.5.1"
 ordered-float = {version = "5.1.0", default-features = false }
 proc-macro2 = { version = "1.0.105", default-features = false }
