@@ -22,6 +22,7 @@ impl ZeekClient for Client {
         }
     }
 
+    #[allow(clippy::unused_async_trait_impl)]
     async fn event(&mut self, _topic: String, event: zeek_websocket::Event) {
         // If we see the `pong` from the `ping` we sent when we connected, drop the sender to
         // indicate we are done.
