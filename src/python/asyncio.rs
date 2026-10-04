@@ -2,7 +2,7 @@ use pyo3::{
     exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
 };
-use pyo3_async_runtimes::tokio::{future_into_py, into_future};
+use pyo3_async_runtimes::{TaskLocals, into_future_with_locals};
 
 use crate::python::Event;
 
@@ -40,24 +40,21 @@ impl ZeekClient {
     /// separate task to perform the `publish` call.
     ///
     /// Callers should `await` the result.
-    fn publish<'py>(
-        &mut self,
-        py: Python<'py>,
-        topic: String,
-        event: Event,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    async fn publish(&mut self, topic: String, event: Event) -> PyResult<()> {
         let outbox = self
             .outbox
             .clone()
             .ok_or_else(|| PyRuntimeError::new_err("client is not connected"))?;
 
-        future_into_py(py, async move {
-            outbox
-                .send(topic, event.0)
-                .await
-                .map_err(|_e| PyRuntimeError::new_err("could not publish event"))?;
-            Ok(())
-        })
+        pyo3_async_runtimes::tokio::get_runtime()
+            .spawn(async move {
+                outbox
+                    .send(topic, event.0)
+                    .await
+                    .map_err(|_e| PyRuntimeError::new_err("could not publish event"))
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("task panicked: {e}")))?
     }
 
     /// Handle client subscription.
@@ -105,6 +102,7 @@ impl ZeekClient {
 
 struct ZeekClientAdapter {
     inner: Py<PyAny>,
+    locals: TaskLocals,
 }
 
 macro_rules! call_async {
@@ -119,7 +117,7 @@ macro_rules! call_async {
                     panic!();
                 }
             };
-            match into_future(x) {
+            match into_future_with_locals(&$client.locals, x) {
                 Ok(x) => x,
                 Err(e) => {
                     e.print(py);
@@ -155,35 +153,36 @@ impl Service {
     ///
     /// Callers should `await` the result.
     #[staticmethod]
-    fn run<'py>(
-        py: Python<'py>,
-        client: Bound<ZeekClient>,
+    async fn run(
+        client: Py<ZeekClient>,
         app_name: String,
         endpoint: String,
         subscriptions: Vec<String>,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    ) -> PyResult<()> {
         let endpoint = endpoint
             .try_into()
             .map_err(|e| PyValueError::new_err(format!("invalid uri: {e}")))?;
 
-        let mut x = client
-            .cast::<ZeekClient>()
-            .map_err(|e| PyRuntimeError::new_err(format!("invalid client: {e}")))?
-            .borrow_mut();
+        let service = Python::attach(|py| -> PyResult<_> {
+            let mut x = client.borrow_mut(py);
+            let locals = TaskLocals::with_running_loop(py)?;
+            Ok(crate::client::Service::new(|outbox| {
+                x.outbox = Some(outbox);
+                ZeekClientAdapter {
+                    inner: client.clone().into(),
+                    locals,
+                }
+            }))
+        })?;
 
-        let service = crate::client::Service::new(|outbox| {
-            x.outbox = Some(outbox);
-            ZeekClientAdapter {
-                inner: client.into(),
-            }
-        });
-
-        future_into_py(py, async move {
-            service
-                .serve(app_name, endpoint, subscriptions)
-                .await
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-            Ok(())
-        })
+        pyo3_async_runtimes::tokio::get_runtime()
+            .spawn(async move {
+                service
+                    .serve(app_name, endpoint, subscriptions)
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("task panicked or cancelled: {e}")))?
     }
 }
