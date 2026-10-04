@@ -1,7 +1,6 @@
 use pyo3::{
     exceptions::{PyNotImplementedError, PyRuntimeError, PyValueError},
     prelude::*,
-    types::PyDict,
 };
 use pyo3_async_runtimes::tokio::{future_into_py, into_future};
 
@@ -12,7 +11,7 @@ use crate::python::Event;
 /// Users are expected to implement the following async methods:
 ///
 /// ```python
-/// async def connected(self, ack: dict[str, str]) -> None: ...
+/// async def connected(self, endpoint: str, version: str) -> None: ...
 /// async def event(self, topic: str, event: Event) -> None: ...
 /// async def error(self, error: str) -> None: ...
 /// ```
@@ -65,7 +64,7 @@ impl ZeekClient {
     ///
     /// Async abstract method which must be implemented by derived classes.
     #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
-    fn connected(&self, py: Python, ack: Py<PyDict>) {
+    fn connected(&self, py: Python, endpoint: String, version: String) {
         PyNotImplementedError::new_err("derived classes must implement `connected'").print(py);
         panic!()
     }
