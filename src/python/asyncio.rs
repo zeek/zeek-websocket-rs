@@ -60,7 +60,7 @@ impl ZeekClient {
         })
     }
 
-    /// Callback to invoke when the client is subscribed.
+    /// Handle client subscription.
     ///
     /// Async abstract method which must be implemented by derived classes.
     #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
@@ -69,7 +69,7 @@ impl ZeekClient {
         panic!()
     }
 
-    /// Callback to invoke when an event is received.
+    /// Handle a received event.
     ///
     /// Async abstract method which must be implemented by derived classes.
     #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
@@ -78,7 +78,7 @@ impl ZeekClient {
         panic!()
     }
 
-    /// Callback to invoke when an error is received.
+    /// Handle a received error.
     ///
     /// Async abstract method which must be implemented by derived classes.
     #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
