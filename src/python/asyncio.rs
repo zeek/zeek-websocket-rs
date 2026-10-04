@@ -1,5 +1,5 @@
 use pyo3::{
-    exceptions::{PyNotImplementedError, PyRuntimeError, PyValueError},
+    exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
 };
 use pyo3_async_runtimes::tokio::{future_into_py, into_future};
@@ -63,28 +63,43 @@ impl ZeekClient {
     /// Handle client subscription.
     ///
     /// Async abstract method which must be implemented by derived classes.
-    #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
-    fn connected(&self, py: Python, endpoint: String, version: String) {
-        PyNotImplementedError::new_err("derived classes must implement `connected'").print(py);
-        panic!()
+    #[allow(
+        clippy::needless_pass_by_value,
+        clippy::unused_async_trait_impl,
+        clippy::unused_async,
+        clippy::unused_self,
+        unused_variables
+    )]
+    async fn connected(&self, endpoint: String, version: String) {
+        panic!("derived classes must implement `connected'")
     }
 
     /// Handle a received event.
     ///
     /// Async abstract method which must be implemented by derived classes.
-    #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
-    fn event(&self, py: Python, topic: String, event: Event) {
-        PyNotImplementedError::new_err("derived classes must implement `event'").print(py);
-        panic!()
+    #[allow(
+        clippy::needless_pass_by_value,
+        clippy::unused_async_trait_impl,
+        clippy::unused_async,
+        clippy::unused_self,
+        unused_variables
+    )]
+    async fn event(&self, topic: String, event: Event) {
+        panic!("derived classes must implement `event'")
     }
 
     /// Handle a received error.
     ///
     /// Async abstract method which must be implemented by derived classes.
-    #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
-    fn error(&self, py: Python, error: String) {
-        PyNotImplementedError::new_err("derived classes must implement `error'").print(py);
-        panic!()
+    #[allow(
+        clippy::needless_pass_by_value,
+        clippy::unused_async_trait_impl,
+        clippy::unused_async,
+        clippy::unused_self,
+        unused_variables
+    )]
+    async fn error(&self, error: String) {
+        panic!("derived classes must implement `error'")
     }
 }
 
