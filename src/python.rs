@@ -1,3 +1,6 @@
+// Suppress this one since `from_py_object` generates clone on `Copy` types.
+#![allow(clippy::clone_on_copy)]
+
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::IpAddr,
