@@ -1,3 +1,5 @@
+exclude: bindings/python/zeek_websocket/zeek_websocket.pyi
+
 repos:
   - repo: https://github.com/doublify/pre-commit-rust
     rev: eeee35a89e69d5772bdee97db1a6a898467b686e  # frozen: v1.0
@@ -92,3 +94,13 @@ repos:
         language: node
         additional_dependencies:
           - oxfmt
+  - repo: local
+    hooks:
+      - id: generate-stubs
+        name: Check generated Python stubs are up-to-date
+        entry: maturin generate-stubs --out bindings/python/zeek_websocket/
+        language: python
+        additional_dependencies:
+          - "maturin==1.14.1"
+        pass_filenames: false
+        files: ^(src/|Cargo\.(toml|lock)|bindings/python/zeek_websocket/.*\.pyi$)

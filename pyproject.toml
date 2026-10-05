@@ -1,5 +1,5 @@
 [build-system]
-requires = ["maturin>=1.9,<2.0"]
+requires = ["maturin>=1.14.1,<2.0"]
 build-backend = "maturin"
 
 [project]
@@ -45,7 +45,7 @@ filterwarnings = [
 
 [tool.ruff.lint]
 select = ["C4", "F", "I", "ISC", "UP", "D"]
-ignore = ["D203", "D213"]
+ignore = ["D203", "D213", "D200"]
 
 [tool.ruff.lint.per-file-ignores]
 "**/bindings/python/tests/*" = ["D"]

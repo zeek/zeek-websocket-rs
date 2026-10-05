@@ -1,9 +1,8 @@
 use pyo3::{
-    exceptions::{PyNotImplementedError, PyRuntimeError, PyValueError},
+    exceptions::{PyRuntimeError, PyValueError},
     prelude::*,
-    types::PyDict,
 };
-use pyo3_async_runtimes::tokio::{future_into_py, into_future};
+use pyo3_async_runtimes::{TaskLocals, into_future_with_locals};
 
 use crate::python::Event;
 
@@ -12,7 +11,7 @@ use crate::python::Event;
 /// Users are expected to implement the following async methods:
 ///
 /// ```python
-/// async def connected(self, ack: dict[str, str]) -> None: ...
+/// async def connected(self, endpoint: str, version: str) -> None: ...
 /// async def event(self, topic: str, event: Event) -> None: ...
 /// async def error(self, error: str) -> None: ...
 /// ```
@@ -41,56 +40,69 @@ impl ZeekClient {
     /// separate task to perform the `publish` call.
     ///
     /// Callers should `await` the result.
-    fn publish<'py>(
-        &mut self,
-        py: Python<'py>,
-        topic: String,
-        event: Event,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    async fn publish(&mut self, topic: String, event: Event) -> PyResult<()> {
         let outbox = self
             .outbox
             .clone()
             .ok_or_else(|| PyRuntimeError::new_err("client is not connected"))?;
 
-        future_into_py(py, async move {
-            outbox
-                .send(topic, event.0)
-                .await
-                .map_err(|_e| PyRuntimeError::new_err("could not publish event"))?;
-            Ok(())
-        })
+        pyo3_async_runtimes::tokio::get_runtime()
+            .spawn(async move {
+                outbox
+                    .send(topic, event.0)
+                    .await
+                    .map_err(|_e| PyRuntimeError::new_err("could not publish event"))
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("task panicked: {e}")))?
     }
 
-    /// Callback to invoke when the client is subscribed.
+    /// Handle client subscription.
     ///
     /// Async abstract method which must be implemented by derived classes.
-    #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
-    fn connected(&self, py: Python, ack: Py<PyDict>) {
-        PyNotImplementedError::new_err("derived classes must implement `connected'").print(py);
-        panic!()
+    #[allow(
+        clippy::needless_pass_by_value,
+        clippy::unused_async_trait_impl,
+        clippy::unused_async,
+        clippy::unused_self,
+        unused_variables
+    )]
+    async fn connected(&self, endpoint: String, version: String) {
+        panic!("derived classes must implement `connected'")
     }
 
-    /// Callback to invoke when an event is received.
+    /// Handle a received event.
     ///
     /// Async abstract method which must be implemented by derived classes.
-    #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
-    fn event(&self, py: Python, topic: String, event: Event) {
-        PyNotImplementedError::new_err("derived classes must implement `event'").print(py);
-        panic!()
+    #[allow(
+        clippy::needless_pass_by_value,
+        clippy::unused_async_trait_impl,
+        clippy::unused_async,
+        clippy::unused_self,
+        unused_variables
+    )]
+    async fn event(&self, topic: String, event: Event) {
+        panic!("derived classes must implement `event'")
     }
 
-    /// Callback to invoke when an error is received.
+    /// Handle a received error.
     ///
     /// Async abstract method which must be implemented by derived classes.
-    #[allow(clippy::unused_self, clippy::needless_pass_by_value, unused_variables)]
-    fn error(&self, py: Python, error: String) {
-        PyNotImplementedError::new_err("derived classes must implement `error'").print(py);
-        panic!()
+    #[allow(
+        clippy::needless_pass_by_value,
+        clippy::unused_async_trait_impl,
+        clippy::unused_async,
+        clippy::unused_self,
+        unused_variables
+    )]
+    async fn error(&self, error: String) {
+        panic!("derived classes must implement `error'")
     }
 }
 
 struct ZeekClientAdapter {
     inner: Py<PyAny>,
+    locals: TaskLocals,
 }
 
 macro_rules! call_async {
@@ -105,7 +117,7 @@ macro_rules! call_async {
                     panic!();
                 }
             };
-            match into_future(x) {
+            match into_future_with_locals(&$client.locals, x) {
                 Ok(x) => x,
                 Err(e) => {
                     e.print(py);
@@ -141,35 +153,36 @@ impl Service {
     ///
     /// Callers should `await` the result.
     #[staticmethod]
-    fn run<'py>(
-        py: Python<'py>,
-        client: Bound<ZeekClient>,
+    async fn run(
+        client: Py<ZeekClient>,
         app_name: String,
         endpoint: String,
         subscriptions: Vec<String>,
-    ) -> PyResult<Bound<'py, PyAny>> {
+    ) -> PyResult<()> {
         let endpoint = endpoint
             .try_into()
             .map_err(|e| PyValueError::new_err(format!("invalid uri: {e}")))?;
 
-        let mut x = client
-            .cast::<ZeekClient>()
-            .map_err(|e| PyRuntimeError::new_err(format!("invalid client: {e}")))?
-            .borrow_mut();
+        let service = Python::attach(|py| -> PyResult<_> {
+            let mut x = client.borrow_mut(py);
+            let locals = TaskLocals::with_running_loop(py)?;
+            Ok(crate::client::Service::new(|outbox| {
+                x.outbox = Some(outbox);
+                ZeekClientAdapter {
+                    inner: client.clone().into(),
+                    locals,
+                }
+            }))
+        })?;
 
-        let service = crate::client::Service::new(|outbox| {
-            x.outbox = Some(outbox);
-            ZeekClientAdapter {
-                inner: client.into(),
-            }
-        });
-
-        future_into_py(py, async move {
-            service
-                .serve(app_name, endpoint, subscriptions)
-                .await
-                .map_err(|e| PyRuntimeError::new_err(e.to_string()))?;
-            Ok(())
-        })
+        pyo3_async_runtimes::tokio::get_runtime()
+            .spawn(async move {
+                service
+                    .serve(app_name, endpoint, subscriptions)
+                    .await
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))
+            })
+            .await
+            .map_err(|e| PyRuntimeError::new_err(format!("task panicked or cancelled: {e}")))?
     }
 }

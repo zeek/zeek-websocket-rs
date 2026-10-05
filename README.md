@@ -32,7 +32,7 @@ Both `ZeekClient` and `Client` allow to receive and send Zeek events as
 ```python
 # Connect an asynchronous client to the Zeek WebSocket API endpoint.
 class Client(ZeekClient):
-    async def connected(self, ack: dict[str, str]) -> None:
+    async def connected(self, endpoint: str, version: str) -> None:
         print(f"Client connected to endpoint {ack}")
 
         # Once connected publish a "ping" event.

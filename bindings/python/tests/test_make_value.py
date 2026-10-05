@@ -365,8 +365,8 @@ def test_str() -> None:
     assert str(Value.Port(8080, Protocol.UNKNOWN)) == "Port(8080, UNKNOWN)"
 
     assert str(Value.Real(0.5)) == "Real(0.5)"
-    assert str(Value.Address("127.0.0.1")) == "Address(127.0.0.1)"
-    assert str(Value.Subnet("127.0.0.1", 8)) == "Subnet(127.0.0.1, 8)"
+    assert str(Value.Address(IPv4Address("127.0.0.1"))) == "Address(127.0.0.1)"
+    assert str(Value.Subnet(IPv4Address("127.0.0.1"), 8)) == "Subnet(127.0.0.1, 8)"
     assert (
         str(Value.Timespan(timedelta(seconds=0.5)))
         == "Timespan(SignedDuration { seconds: 0, nanoseconds: 500000000 })"
