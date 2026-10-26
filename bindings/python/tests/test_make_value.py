@@ -2,7 +2,7 @@ import dataclasses
 import enum
 import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from ipaddress import IPv4Address
 from typing import ClassVar
 
@@ -119,9 +119,9 @@ def test_timespan() -> None:
 
 
 def test_timestamp() -> None:
-    x = make_value(datetime(year=2000, month=1, day=2, tzinfo=timezone.utc))
+    x = make_value(datetime(year=2000, month=1, day=2, tzinfo=UTC))
     assert isinstance(x, Value.Timestamp)
-    assert x.value == datetime(year=2000, month=1, day=2, tzinfo=timezone.utc)
+    assert x.value == datetime(year=2000, month=1, day=2, tzinfo=UTC)
 
 
 def test_vector() -> None:
@@ -372,7 +372,7 @@ def test_str() -> None:
         == "Timespan(SignedDuration { seconds: 0, nanoseconds: 500000000 })"
     )
     assert (
-        str(Value.Timestamp(datetime(2000, 10, 2, 13, 14, 15, 16, timezone.utc)))
+        str(Value.Timestamp(datetime(2000, 10, 2, 13, 14, 15, 16, UTC)))
         == "Timestamp(2000-10-02 13:14:15.000016 +00:00:00)"
     )
     assert str(Value.None_()) == "None_"
