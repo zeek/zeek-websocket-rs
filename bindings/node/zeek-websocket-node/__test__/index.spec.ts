@@ -1,6 +1,6 @@
 import test from "ava";
 
-import { deserializeJson, Event, Message, serializeJson } from "../index";
+import { deserializeJson, Event, Message, serializeJson } from "../../../../index";
 
 const SERIALIZED = {
   type: "data-message",
