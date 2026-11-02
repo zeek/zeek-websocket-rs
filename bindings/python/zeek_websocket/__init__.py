@@ -53,7 +53,9 @@ class Client:
         self._binding = ProtocolBinding(topics)
 
         self._conn = websockets.sync.client.connect(
-            endpoint_uri, additional_headers={"X-Application-Name": app_name}
+            endpoint_uri,
+            additional_headers={"X-Application-Name": app_name},
+            legacy=True,
         )
 
         # Immediately send out the subscription and handle the ACK.
