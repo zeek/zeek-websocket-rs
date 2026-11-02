@@ -54,7 +54,7 @@
   "scripts": {
     "prepare": "npm run build",
     "build": "napi build --platform --release --manifest-path bindings/node/zeek-websocket-node/Cargo.toml -o $PWD",
-    "build:debug": "napi build --platform --manifest-path bindings/node/zeek-websocket-node/Cargo.toml",
+    "build:debug": "napi build --platform --manifest-path bindings/node/zeek-websocket-node/Cargo.toml -o $PWD",
     "prepublishOnly": "napi prepublish -t npm",
     "test": "ava",
     "preversion": "napi build --platform  --manifest-path bindings/node/zeek-websocket-node/Cargo.toml -o $PWD && git add .",
