@@ -50,7 +50,7 @@ jobs:
         with:
           submodules: recursive
           persist-credentials: false
-      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2
         with:
           python-version: ${{ matrix.python-version }}
           enable-cache: true
@@ -144,7 +144,7 @@ jobs:
         run: cargo codspeed build
 
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@78102a468f96d8e0ccb92d0ec49425753fc42062
+        uses: CodSpeedHQ/action@af75f77f17a054769abefaa42fe8dc2975469b5f
         with:
           run: cargo codspeed run
           token: ${{ secrets.CODSPEED_TOKEN }}

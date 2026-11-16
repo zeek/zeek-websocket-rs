@@ -47,6 +47,7 @@ class Client(ZeekClient):
     async def error(self, error: str) -> None:
         raise NotImplementedError(error)
 
+
 # Run the client until it either explicitly disconnects, or hits a fatal error.
 await Service.run(Client(), "client", mock_server, ["/ping"])
 ```
@@ -97,7 +98,7 @@ The library provides a convenience function `make_value` which can be used
 to automatically infer a matching `Value` variant,
 
 ```python
-print(f"{make_value("abc")}")  # Prints 'String("abc")'.
+print(f"{make_value('abc')}")  # Prints 'String("abc")'.
 ```
 
 > [!CAUTION]
@@ -111,7 +112,7 @@ which also made use of implicit type conversion, and `4711` was implicitly
 mapped to a `Value.Integer`,
 
 ```python
-ping = Event(name="ping", args=(4711, ), metadata=())
+ping = Event(name="ping", args=(4711,), metadata=())
 print(ping)
 # Event { name: "ping", args: [Integer(4711)], metadata: [] }
 ```
@@ -119,7 +120,7 @@ print(ping)
 We could have been explicit with
 
 ```python
-ping = Event(name="ping", args=(Value.Integer(4711), ), metadata=())
+ping = Event(name="ping", args=(Value.Integer(4711),), metadata=())
 print(ping)
 # Event { name: "ping", args: [Integer(4711)], metadata: [] }
 ```
@@ -156,7 +157,10 @@ class X:
         self.a = a
         self.b = b
 
-print(make_value(X(4711, "abc")))  # Prints 'Record({"a": Count(4711), "b": String("abc")})'.
+
+print(
+    make_value(X(4711, "abc"))
+)  # Prints 'Record({"a": Count(4711), "b": String("abc")})'.
 ```
 
 we only support converting a `Value` to a Python instances for dataclasses via `as_record`:
@@ -167,6 +171,7 @@ we only support converting a `Value` to a Python instances for dataclasses via `
 class X:
     a: int
     b: str
+
 
 x = make_value(X(4711, "abc"))  # Record({"a": Count(4711), "b": String("abc")}).
 
@@ -182,6 +187,7 @@ We support conversion from an to instances of `enum.Enum` values, e.g.,
 class E(enum.Enum):
     a = 1
     b = 2
+
 
 e = E.a
 
